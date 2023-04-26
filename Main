@@ -1,0 +1,183 @@
+local Mouse = game.Players.LocalPlayer:GetMouse()
+Mouse.TargetFilter = workspace.Previews
+_G.IsBuilding = true
+local Object = "Grass"
+local Rotation = 0
+local Height = 5
+local builds = {"Bridge","Stairs","Grass","Water"}
+local default = true
+local build = workspace.Previews:FindFirstChild("Preview" ..Object)
+local Camera = workspace.Camera
+Camera.FieldOfView = 70
+Camera.CameraType = Enum.CameraType.Custom
+
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessedEvent)
+	if not gameProcessedEvent then
+		if input.KeyCode == Enum.KeyCode.One then
+			Object = builds[1]
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.Two then
+			Object = builds[2]
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.Three then
+			Object = builds[3]
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.Four then
+			Object = builds[4]
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.F then
+			if _G.IsBuilding then
+				if Mouse.Target.Parent == workspace.Blocks then
+					Mouse.Target:Remove()
+					return
+				end
+				if Mouse.Target.Parent.Parent == workspace.Blocks then
+					Mouse.Target.Parent:Remove()
+					return
+				end
+			end
+		if input.KeyCode == Enum.KeyCode.G then
+			default = not default
+		end
+		else
+			if input.KeyCode == Enum.KeyCode.E then
+				Rotation = Rotation + 90
+				return
+			end
+			if input.KeyCode == Enum.KeyCode.Q then
+				Rotation = Rotation - 90
+				return
+			end
+			if input.KeyCode == Enum.KeyCode.T then
+				if Height + 10 > 25 then
+					return
+				else
+					Height = Height + 10
+				end
+			end
+			if input.KeyCode == Enum.KeyCode.R then
+				if Height - 10 < 5 then
+					return
+				else
+					Height = Height - 10
+				end
+			end
+			if input.KeyCode == Enum.KeyCode.B then
+				_G.IsBuilding = not _G.IsBuilding
+			end
+		end
+	end
+end)
+game:GetService("RunService").RenderStepped:Connect(function()
+	Camera.CameraType = Enum.CameraType.Scriptable
+	Camera.FieldOfView = 25
+	local HumanoidRootPart = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+	if default then
+		Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(HumanoidRootPart.Position + Vector3.new(64, 64, 64), HumanoidRootPart.Position + Vector3.new(0, 2, 0)), 1)
+	else
+		Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(build.Position + Vector3.new(64, 64, 64), build.Position + Vector3.new(0, 2, 0)), 0.04)
+	end
+	
+	local HitX = math.round(Mouse.Hit.Position.X / 4) * 4
+	local HitY = math.round(Mouse.Hit.Position.Z / 4) * 4
+	local PreviewGrass = workspace.Previews.PreviewGrass
+	local PreviewWater = workspace.Previews.PreviewWater
+	local PreviewBridge = workspace.Previews.PreviewBridge
+	local PreviewStairs = workspace.Previews.PreviewStairs
+	PreviewGrass.CFrame = CFrame.fromOrientation(0, math.rad(Rotation), 0) + Vector3.new(HitX, Height, HitY)
+	PreviewWater.CFrame = CFrame.fromOrientation(0, math.rad(Rotation), 0) + Vector3.new(HitX, Height, HitY)
+	PreviewBridge.CFrame = CFrame.fromOrientation(0, math.rad(Rotation), 0) + Vector3.new(HitX, Height + 10, HitY)
+	PreviewStairs.CFrame = CFrame.fromOrientation(0, math.rad(Rotation), 0) + Vector3.new(HitX, Height, HitY)
+	for i, v in workspace.Previews:GetChildren() do
+		if v:IsA("Part") or v:IsA("UnionOperation") then
+			v.Transparency = 1
+		end
+	end
+	workspace.Previews:FindFirstChild("Preview" ..Object).Transparency = 0.8
+	script.Value.Value = Object
+	if not _G.IsBuilding then
+		for i, v in workspace.Previews:GetChildren() do
+			if v:IsA("Part") or v:IsA("UnionOperation") then
+				v.Transparency = 1
+			end
+		end
+	end
+end)
+Mouse.Button1Down:Connect(function()
+	if _G.IsBuilding then
+		local Cloned = game.ReplicatedStorage[Object]:Clone()
+		Cloned.Parent = workspace.Blocks
+		Cloned.CFrame = workspace.Previews["Preview" .. Object].CFrame
+	end
+end)
+
+-- Configuration
+local MaxPathLength = 100 
+local SphereRadius = 0.6
+
+-- Variables
+local StartPart = workspace.StartPoint
+local EndPart = workspace.EndPoint
+local Path = Instance.new("Folder", workspace)
+Path.Name = "Path"
+
+-- Define the maze size
+local MAZE_WIDTH = 30
+local MAZE_HEIGHT = 30
+
+-- Create the maze
+local maze = {}
+for i = 1, MAZE_HEIGHT do
+	maze[i] = {}
+	for j = 1, MAZE_WIDTH do
+		maze[i][j] = math.random(0, 1)
+	end
+end
+
+local AllSpheres = {}
+local TweenService = game:GetService("TweenService")
+
+local function CreateSpheresOnPath()
+	local startPos = workspace.StartPoint.Position
+	local endPos = workspace.EndPoint.Position
+	local path = game:GetService("PathfindingService"):CreatePath()
+	path:ComputeAsync(startPos, endPos)
+	local Waypoints = path:GetWaypoints()
+
+	-- Create new path spheres
+	local newSpheres = {}
+	for _, waypoint in ipairs(Waypoints) do
+		local sphere = Instance.new("Part")
+		sphere.Anchored = true
+		sphere.Shape = Enum.PartType.Ball
+		sphere.Material = "Neon"
+		sphere.Size = Vector3.new(SphereRadius * 2, SphereRadius * 2, SphereRadius * 2)
+		sphere.Parent = Path
+		sphere.Position = waypoint.Position + Vector3.new(0, 2, 0)
+		table.insert(newSpheres, sphere)
+	end
+
+	-- Destroy the old path spheres
+	for _, sphere in ipairs(AllSpheres) do
+		-- Tween the Transparency of the sphere from 1 to 0, then destroy it
+		local transparencyTween = TweenService:Create(sphere, TweenInfo.new(0.5), {Transparency = 1})
+		transparencyTween:Play()
+		transparencyTween.Completed:Connect(function()
+			sphere:Destroy()
+		end)
+	end
+
+	AllSpheres = newSpheres
+end
+
+
+-- Call the CreateSpheresOnPath function initially
+CreateSpheresOnPath()
+
+-- Update the path when the StartPosition or EndPosition changes
+StartPart:GetPropertyChangedSignal("Position"):Connect(CreateSpheresOnPath)
+EndPart:GetPropertyChangedSignal("Position"):Connect(CreateSpheresOnPath)
